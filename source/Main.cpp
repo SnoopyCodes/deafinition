@@ -9,38 +9,70 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_audio_utils/juce_audio_utils.h>
 
+/*
+  ==============================================================================
+
+    This file contains the startup code for a PIP.
+
+  ==============================================================================
+*/
 
 #include "MainComponent.h"
 
-class app : public juce::JUCEApplication
+class Application    : public juce::JUCEApplication
 {
 public:
-    const juce::String getApplicationName() override       { return "app name"; }
+    //==============================================================================
+    Application() = default;
+
+    const juce::String getApplicationName() override       { return "SimpleFFTTutorial"; }
     const juce::String getApplicationVersion() override    { return "1.0.0"; }
-    bool moreThanOneInstanceAllowed() override             { return true; }
 
-    void initialise(const juce::String&) override          { mainWindow.reset(new MainWindow()); }
-    void shutdown() override                               { mainWindow = nullptr; }
+    void initialise (const juce::String&) override
+    {
+        mainWindow.reset (new MainWindow ("SimpleFFTTutorial", new MainComponent, *this));
+    }
 
-    class MainWindow : public juce::DocumentWindow
+    void shutdown() override                         { mainWindow = nullptr; }
+
+private:
+    class MainWindow    : public juce::DocumentWindow
     {
     public:
-        MainWindow() : DocumentWindow("Main Window", juce::Colours::lightgrey, DocumentWindow::allButtons)
+        MainWindow (const juce::String& name, juce::Component* c, JUCEApplication& a)
+            : DocumentWindow (name, juce::Desktop::getInstance().getDefaultLookAndFeel()
+                                                                .findColour (ResizableWindow::backgroundColourId),
+                              juce::DocumentWindow::allButtons),
+              app (a)
         {
-            setUsingNativeTitleBar(true);
-            setContentOwned(new MainComponent(), true);
-            centreWithSize(getWidth(), getHeight());
-            setVisible(true);
+            setUsingNativeTitleBar (true);
+            setContentOwned (c, true);
+
+           #if JUCE_ANDROID || JUCE_IOS
+            setFullScreen (true);
+           #else
+            setResizable (true, false);
+            setResizeLimits (300, 250, 10000, 10000);
+            centreWithSize (getWidth(), getHeight());
+           #endif
+
+            setVisible (true);
         }
 
         void closeButtonPressed() override
         {
-            juce::JUCEApplication::getInstance()->systemRequestedQuit();
+            app.systemRequestedQuit();
         }
+
+    private:
+        JUCEApplication& app;
+
+        //==============================================================================
+        JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainWindow)
     };
 
-private:
     std::unique_ptr<MainWindow> mainWindow;
 };
 
-START_JUCE_APPLICATION(app)
+//==============================================================================
+START_JUCE_APPLICATION (Application)
