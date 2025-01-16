@@ -21,7 +21,7 @@ public:
     void prepareToPlay(int samplesPerBlock, double sampleRate) override;
     void getNextAudioBlock(const juce::AudioSourceChannelInfo& bufferToFill) override;
     void releaseResources() override;
-
+    void logAudioDeviceInfo();
     void timerCallback() override;
 
     //idk what noexcept does
@@ -34,6 +34,8 @@ public:
 private:
     juce::Image spectrogramImage;
     juce::dsp::FFT forwardFFT;
+
+    juce::Random random;
 
     //i think we are doing the weird chinese queue
     //fifo is the audio data in samples
