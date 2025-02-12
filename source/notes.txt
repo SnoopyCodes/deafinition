@@ -1,0 +1,11 @@
+objective: add a slider to the top of the spectrogram to control audio output level
+
+The window has a MainComponent, from which all other classes derive
+each component class must override void paint(juce::Graphics &g), void resized()
+i have not implemented resized(); the default is that it will shrink and stretch the content
+on the screen, which is pretty desired behavior
+therefore i need to just add a slider on top of that
+
+yo why is this git not pushing wtf
+have to configure that later
+

@@ -21,10 +21,10 @@ public:
     void prepareToPlay(int samplesPerBlock, double sampleRate) override;
     void getNextAudioBlock(const juce::AudioSourceChannelInfo& bufferToFill) override;
     void releaseResources() override;
-    void logAudioDeviceInfo();
     void timerCallback() override;
+    void resized() override;
+    void logAudioDeviceInfo();
 
-    //idk what noexcept does
     void pushNextSampleIntoFifo(float);
 
     void drawNextLineOfSpectrogram();

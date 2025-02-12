@@ -5,7 +5,7 @@ import librosa
 import librosa.display
 import matplotlib.pyplot as plt
 import time
-
+# q: what are dependencies? numpy, what else?
 rate = 26000
 chunk_size = rate // 4
 

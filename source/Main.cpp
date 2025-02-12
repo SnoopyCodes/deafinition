@@ -9,16 +9,8 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_audio_utils/juce_audio_utils.h>
 
-/*
-  ==============================================================================
-
-    This file contains the startup code for a PIP.
-
-  ==============================================================================
-*/
-
 #include "MainComponent.h"
-
+//the spacing on all of this looks insane
 class Application    : public juce::JUCEApplication
 {
 public:
