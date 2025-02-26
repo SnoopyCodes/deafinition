@@ -40,9 +40,11 @@ private:
     //i think we are doing the weird chinese queue
     //fifo is the audio data in samples
     //fftdata is results of our fft
+    juce::Slider decibel_slider;
     std::array<float, fftSize> fifo;
     std::array<float, fftSize * 2> fftData;
     int fifoIndex = 0;
+    float level = 0;
     bool nextFFTBlockReady = false;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
 };

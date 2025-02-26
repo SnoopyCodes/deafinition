@@ -6,6 +6,6 @@ i have not implemented resized(); the default is that it will shrink and stretch
 on the screen, which is pretty desired behavior
 therefore i need to just add a slider on top of that
 
-yo why is this git not pushing wtf
-have to configure that later
-
+auto rules: if it's a primitive, make explicit
+otherwise, use auto and good naming
+naming: use like snake case cause i think its fine

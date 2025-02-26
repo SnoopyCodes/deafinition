@@ -4,11 +4,19 @@ MainComponent::MainComponent()
 : forwardFFT(fftOrder), spectrogramImage(juce::Image::RGB, 512, 512, true)
 {
     setOpaque(true);
-    setAudioChannels(3, 0);
+    //change depending on tsuff
+    setAudioChannels(3, 2);
     
+    //figure out what false is
+    decibel_slider.setRange(-40, 40, 1);
+    decibel_slider.onValueChange = [this] {
+        level = juce::Decibels::decibelsToGain((float) decibel_slider.getValue());
+    };
+    addAndMakeVisible(decibel_slider);
+
     startTimerHz(60);
 
-    setSize(700, 500);  // Set the initial size of the component
+    setSize(700, 500);  //honestly no one cares about size
     logAudioDeviceInfo();
 }
 
@@ -25,20 +33,23 @@ void MainComponent::releaseResources() {}
 
 void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& bufferToFill) {
     //pointer to audio in
-    if (bufferToFill.buffer -> getNumChannels() > 0) {
-        auto* channelData = bufferToFill.buffer -> getReadPointer(0, bufferToFill.startSample);
-        for (int i = 0; i < bufferToFill.numSamples; i++) {
-            pushNextSampleIntoFifo(channelData[i]);
-        }
-    }
+    //do fft
+    // if (bufferToFill.buffer -> getNumChannels() > 0) {
+    //     auto* channelData = bufferToFill.buffer -> getReadPointer(0, bufferToFill.startSample);
+    //     for (int i = 0; i < bufferToFill.numSamples; i++) {
+    //         pushNextSampleIntoFifo(channelData[i]);
+    //     }
+    // }
+
+    //actual processing
     auto *device = deviceManager.getCurrentAudioDevice();
     auto activeIn = device->getActiveInputChannels();
     auto activeOut = device->getActiveOutputChannels();
-    auto maxIn = activeIn.getHighestBit() + 1;
-    auto maxOut = activeOut.getHighestBit() + 1;
+    int maxIn = activeIn.getHighestBit() + 1;
+    int maxOut = activeOut.getHighestBit() + 1;
     
     for (int channel = 0; channel < maxOut; channel++) {
-        if (!activeOut[channel] || maxIn == 0) {
+        if (!activeOut[channel] || maxIn == 0 || channel >= maxIn) {
             bufferToFill.buffer->clear(channel, bufferToFill.startSample, bufferToFill.numSamples);
         }   else {
             int actualIn = channel % maxIn;
@@ -48,17 +59,15 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
                 auto *inBuffer = bufferToFill.buffer->getReadPointer(actualIn, bufferToFill.startSample);
                 auto *outBuffer = bufferToFill.buffer->getWritePointer(channel, bufferToFill.startSample);
                 for (int sample = 0; sample < bufferToFill.numSamples; sample++) {
-                    //well this is how to process audio i guess
-                    //change sample to whatever
+                    //chat, what are the chances of this working
+                    outBuffer[sample] = inBuffer[sample] * level;
                 }
             }
         }
     }
-
 }
 
-void MainComponent::logAudioDeviceInfo()
-{
+void MainComponent::logAudioDeviceInfo() {
     auto* device = deviceManager.getCurrentAudioDevice();
     if (device != nullptr)
     {
@@ -77,11 +86,15 @@ void MainComponent::logAudioDeviceInfo()
 void MainComponent::paint(juce::Graphics& g) {
     g.fillAll(juce::Colours::black);
     g.setOpacity(1.0f);
-    g.drawImage(spectrogramImage, getLocalBounds().toFloat());
+    auto bound_rect = getLocalBounds().toFloat();
+    bound_rect.setHeight(bound_rect.getHeight() * 9/10);
+    g.drawImage(spectrogramImage, bound_rect);
+    //add the slider in the last 1/10th
+    decibel_slider.setBoundsRelative(0, .9f, 1, .1);
 }
 
 void MainComponent::resized() {
-    //...
+    
 }
 
 void MainComponent::timerCallback() {
@@ -105,7 +118,6 @@ void MainComponent::pushNextSampleIntoFifo(float sample) {
     fifo[(size_t) fifoIndex++] = sample;
 }
 
-
 void MainComponent::drawNextLineOfSpectrogram() {
     int rightEdge = spectrogramImage.getWidth() - 1;
     int imageHeight = spectrogramImage.getHeight();
@@ -126,4 +138,6 @@ void MainComponent::drawNextLineOfSpectrogram() {
 
         spectrogramImage.setPixelAt(rightEdge, i, juce::Colour::fromHSV(level, 1.0f, level, 1.0f));
     }
+    //also, this function should be running much faster than it actually is..
+    //is there any way to decrease audio quality and increase speed?
 }
