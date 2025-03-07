@@ -9,3 +9,19 @@ therefore i need to just add a slider on top of that
 auto rules: if it's a primitive, make explicit
 otherwise, use auto and good naming
 naming: use like snake case cause i think its fine
+
+ok mission accomplished
+it does general audio scaling
+things to fix: fix latency, right now this is *very bad*
+and figure out how to do actual audio editing
+note that in cp fft is used to multiply polynomials
+so (at least for the most basic impl) the intermediate step does not matter
+we have to edit, however, in these, so we need to figure that out
+how often should we run fft? let's just run when our fft is filled
+it is filled like 48000/1024 ~ 45 times per second means 
+a delay of over .02 seconds, which is acceptable
+i need to therefore get audio latency fixed immediately
+windowing functions? we may not need these
+
+fix audio latency: AudioIODevice callback thing
+problem: it is calling both its own thing and the other thing simultaneously

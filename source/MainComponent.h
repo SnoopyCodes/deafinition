@@ -11,16 +11,40 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_audio_utils/juce_audio_utils.h>
 
-class MainComponent : public juce::AudioAppComponent, private juce::Timer  {
+class audio_processor : public juce::AudioIODeviceCallback {
+public:
+    void audioDeviceIOCallbackWithContext(const float *const* inputChannelData,
+                               int totalNumInputChannels,
+                               float *const * outputChannelData,
+                               int totalNumOutputChannels,
+                               int numSamples,
+                               const juce::AudioIODeviceCallbackContext &context) override {
+        for (int channel = 0; channel < totalNumInputChannels; ++channel) {
+            // Copy input to output (pass-through)
+            if (channel < totalNumOutputChannels) {
+                std::memcpy(outputChannelData[channel], inputChannelData[channel], sizeof(float) * numSamples);
+            }
+        }
+    }
+
+    void audioDeviceAboutToStart(juce::AudioIODevice* device) override {std::cout <<"lets go" << std::endl;}
+
+    void audioDeviceStopped() override {std::cout << "bruh" << std::endl;}
+};
+
+class MainComponent :
+// public juce::AudioAppComponent,
+public juce::Component,
+private juce::Timer  {
 public:
     static constexpr int fftOrder = 10;
     static constexpr int fftSize = 1 << fftOrder;
     MainComponent();
     ~MainComponent() override;
 
-    void prepareToPlay(int samplesPerBlock, double sampleRate) override;
-    void getNextAudioBlock(const juce::AudioSourceChannelInfo& bufferToFill) override;
-    void releaseResources() override;
+    // void prepareToPlay(int samplesPerBlock, double sampleRate) override;
+    // void getNextAudioBlock(const juce::AudioSourceChannelInfo& bufferToFill) override;
+    // void releaseResources() override;
     void timerCallback() override;
     void resized() override;
     void logAudioDeviceInfo();
@@ -34,15 +58,16 @@ public:
 private:
     juce::Image spectrogramImage;
     juce::dsp::FFT forwardFFT;
-
     juce::Random random;
+    juce::AudioDeviceManager deviceManager;
 
-    //i think we are doing the weird chinese queue
-    //fifo is the audio data in samples
-    //fftdata is results of our fft
+
     juce::Slider decibel_slider;
     std::array<float, fftSize> fifo;
     std::array<float, fftSize * 2> fftData;
+
+    audio_processor processor;
+
     int fifoIndex = 0;
     float level = 0;
     bool nextFFTBlockReady = false;
