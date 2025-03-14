@@ -5,10 +5,9 @@ MainComponent::MainComponent()
 {
     setOpaque(true);
     //change depending on tsuff
-    // setAudioChannels(3, 2);
+    setAudioChannels(3, 2);
 
-    deviceManager.initialiseWithDefaultDevices(3, 3);
-    deviceManager.addAudioCallback(&processor);
+    auto *device = deviceManager.getCurrentAudioDevice();
 
     decibel_slider.setRange(-40, 40, 1);
     decibel_slider.onValueChange = [this] {
@@ -23,53 +22,51 @@ MainComponent::MainComponent()
 }
 
 MainComponent::~MainComponent() {
-    // shutdownAudio();
+    shutdownAudio();
 }
 
-// void MainComponent::prepareToPlay(int samplesPerBlock, double sampleRate) {
-//     //480, 48000, 100 blocks per second
-//     std::cout << "prepped " << samplesPerBlock << " " << sampleRate << std::endl;
-// }
+void MainComponent::prepareToPlay(int samplesPerBlock, double sampleRate) {
+    //480, 48000, 100 blocks per second
+    std::cout << "prepped " << samplesPerBlock << " " << sampleRate << std::endl;
+}
 
-// void MainComponent::releaseResources() {}
+void MainComponent::releaseResources() {}
 
-// void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& bufferToFill) {
-//     //pointer to audio in
-//     //do fft
-//     if (bufferToFill.buffer -> getNumChannels() > 0) {
-//         auto* channelData = bufferToFill.buffer -> getReadPointer(0, bufferToFill.startSample);
-//         for (int i = 0; i < bufferToFill.numSamples; i++) {
-//             pushNextSampleIntoFifo(channelData[i]);
-//         }
-//     }
+void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& bufferToFill) {
+    //pointer to audio in
+    //do fft
+    if (bufferToFill.buffer -> getNumChannels() > 0) {
+        auto* channelData = bufferToFill.buffer -> getReadPointer(0, bufferToFill.startSample);
+        for (int i = 0; i < bufferToFill.numSamples; i++) {
+            pushNextSampleIntoFifo(channelData[i]);
+        }
+    }
 
-//     //actual processing
-//     auto *device = deviceManager.getCurrentAudioDevice();
-//     auto activeIn = device->getActiveInputChannels();
-//     auto activeOut = device->getActiveOutputChannels();
-//     int maxIn = activeIn.getHighestBit() + 1;
-//     int maxOut = activeOut.getHighestBit() + 1;
+    //actual processing
+    auto *device = deviceManager.getCurrentAudioDevice();
+    auto activeIn = device->getActiveInputChannels();
+    auto activeOut = device->getActiveOutputChannels();
+    int maxIn = activeIn.getHighestBit() + 1;
+    int maxOut = activeOut.getHighestBit() + 1;
     
-//     for (int channel = 0; channel < maxOut; channel++) {
-//         if (!activeOut[channel] || maxIn == 0 || channel >= maxIn) {
-//             bufferToFill.buffer->clear(channel, bufferToFill.startSample, bufferToFill.numSamples);
-//         }   else {
-//             int actualIn = channel % maxIn;
-//             if (!activeIn[channel]) {
-//                 bufferToFill.buffer->clear(channel, bufferToFill.startSample, bufferToFill.numSamples);
-//             }   else {
-//                 auto *inBuffer = bufferToFill.buffer->getReadPointer(actualIn, bufferToFill.startSample);
-//                 auto *outBuffer = bufferToFill.buffer->getWritePointer(channel, bufferToFill.startSample);
-//                 for (int sample = 0; sample < bufferToFill.numSamples; sample++) {
-//                     //oh joy
-//                     outBuffer[sample] = inBuffer[sample] * level;
-//                 }
-//             }
-//         }
-//     }
-//     //it is in fact calling this yes
-//     std::cout << "..." << std::endl;
-// }
+    for (int channel = 0; channel < maxOut; channel++) {
+        if (!activeOut[channel] || maxIn == 0 || channel >= maxIn) {
+            bufferToFill.buffer->clear(channel, bufferToFill.startSample, bufferToFill.numSamples);
+        }   else {
+            int actualIn = channel % maxIn;
+            if (!activeIn[channel]) {
+                bufferToFill.buffer->clear(channel, bufferToFill.startSample, bufferToFill.numSamples);
+            }   else {
+                auto *inBuffer = bufferToFill.buffer->getReadPointer(actualIn, bufferToFill.startSample);
+                auto *outBuffer = bufferToFill.buffer->getWritePointer(channel, bufferToFill.startSample);
+                for (int sample = 0; sample < bufferToFill.numSamples; sample++) {
+                    //oh joy
+                    outBuffer[sample] = inBuffer[sample] * level;
+                }
+            }
+        }
+    }
+}
 
 void MainComponent::logAudioDeviceInfo() {
     auto* device = deviceManager.getCurrentAudioDevice();
