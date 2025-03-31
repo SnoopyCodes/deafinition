@@ -33,22 +33,28 @@ void MainComponent::prepareToPlay(int samplesPerBlock, double sampleRate) {
 void MainComponent::releaseResources() {}
 
 void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& bufferToFill) {
-    //pointer to audio in
-    //do fft
-    if (bufferToFill.buffer -> getNumChannels() > 0) {
-        auto* channelData = bufferToFill.buffer -> getReadPointer(0, bufferToFill.startSample);
-        for (int i = 0; i < bufferToFill.numSamples; i++) {
-            pushNextSampleIntoFifo(channelData[i]);
-        }
-    }
-
-    //actual processing
     auto *device = deviceManager.getCurrentAudioDevice();
     auto activeIn = device->getActiveInputChannels();
     auto activeOut = device->getActiveOutputChannels();
     int maxIn = activeIn.getHighestBit() + 1;
     int maxOut = activeOut.getHighestBit() + 1;
+
+    //do fft
+    fifoIndex = 0;
+    std::fill(fifo.begin(), fifo.end(), 0);
+    std::fill(fftData.begin(), fftData.end(), 0);
+    for (int i = 0; i < maxIn; i++) {
+        if (!activeIn[i]) { continue; }
+        auto *channelData = bufferToFill.buffer->getReadPointer(i, bufferToFill.startSample);
+        for (int j = 0; j < bufferToFill.numSamples; j++) {
+            fifo[fifoIndex++] = channelData[j];
+        }
+    }
+    std::copy(fifo.begin(), fifo.end(), fftData.data());
+    //we can now perform an fft
     
+    int data_index = 0;
+
     for (int channel = 0; channel < maxOut; channel++) {
         if (!activeOut[channel] || maxIn == 0 || channel >= maxIn) {
             bufferToFill.buffer->clear(channel, bufferToFill.startSample, bufferToFill.numSamples);
@@ -59,9 +65,9 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
             }   else {
                 auto *inBuffer = bufferToFill.buffer->getReadPointer(actualIn, bufferToFill.startSample);
                 auto *outBuffer = bufferToFill.buffer->getWritePointer(channel, bufferToFill.startSample);
-                for (int sample = 0; sample < bufferToFill.numSamples; sample++) {
-                    //oh joy
-                    outBuffer[sample] = inBuffer[sample] * level;
+                for (int sample = 0; sample < bufferToFill.numSamples; sample++, data_index++) {
+                    if (data_index >= fifo.size()) { data_index -= fifo.size(); }
+                    outBuffer[sample] = fftData[data_index] * level;
                 }
             }
         }
