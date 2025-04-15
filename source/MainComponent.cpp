@@ -1,21 +1,64 @@
 #include "MainComponent.h"
 
 MainComponent::MainComponent()
-: forwardFFT(fftOrder), spectrogramImage(juce::Image::RGB, 512, 512, true)
+: fft(fftOrder), spectrogramImage(juce::Image::RGB, 512, 512, true),
+window(fftSize, juce::dsp::WindowingFunction<float>::blackman)
 {
     setOpaque(true);
     //change depending on tsuff
     setAudioChannels(3, 2);
 
     auto *device = deviceManager.getCurrentAudioDevice();
+    
+    //:moyai:
+    // decibel_slider.setRange(-40, 40, 1);
+    // decibel_slider.onValueChange = [this] {
+    //     level = juce::Decibels::decibelsToGain((float) decibel_slider.getValue());
+    // };
+    // addAndMakeVisible(decibel_slider);
 
-    decibel_slider.setRange(-40, 40, 1);
-    decibel_slider.onValueChange = [this] {
-        level = juce::Decibels::decibelsToGain((float) decibel_slider.getValue());
-    };
-    addAndMakeVisible(decibel_slider);
+    freopen("audiogram.txt", "r", stdin);
+    int N; std::cin >> N;
+    boost_gain.resize(N + 2);
+    boost_freq.resize(N + 2);
+    for (int i = 0; i < N; i++) {
+        float freq, db; std::cin >> freq >> db;
+        boost_freq[i + 1] = freq;
+        boost_gain[i + 1] = juce::Decibels::decibelsToGain(db);
+    }
+    boost_gain[0] = 1;
+    boost_freq[0] = 0;
+    boost_gain[N + 1] = 1;
+    boost_freq[N + 1] = 25000;
+    for (int i = 0; i < N + 2; i++) {
+        auto const&[a, b] = std::array<float, 2>{boost_freq[i], boost_gain[i]};
+        std::cout << a << " " << std::endl;
+    }
 
+    juce::String error = deviceManager.initialise(
+        3,  // Input channels
+        2,  // Output channels
+        nullptr,  // No XML settings
+        false,
+        "Headphones (2- AirPods Pro)"
+    );
     startTimerHz(60);
+
+    const auto& deviceTypes = deviceManager.getAvailableDeviceTypes();
+
+    for (auto* type : deviceTypes) {
+        type->scanForDevices();  // Force refresh
+        std::cout <<"Device type: " << type->getTypeName() << std::endl;
+        
+        auto inputNames = type->getDeviceNames(true);
+        auto outputNames = type->getDeviceNames(false);
+        
+        for (auto& name : inputNames) 
+            std::cout << "Input: " << name << std::endl;
+        for (auto& name : outputNames) 
+            std::cout <<"Output: " << name << std::endl;
+    }
+
 
     setSize(700, 500);  //honestly no one cares about size
     logAudioDeviceInfo();
@@ -27,7 +70,8 @@ MainComponent::~MainComponent() {
 
 void MainComponent::prepareToPlay(int samplesPerBlock, double sampleRate) {
     //480, 48000, 100 blocks per second
-    std::cout << "prepped " << samplesPerBlock << " " << sampleRate << std::endl;
+    // std::cout << "prepped " << samplesPerBlock << " " << sampleRate << std::endl;
+    // std::cout << deviceManager.getCurrentAudioDevice()->getName() << std::endl;
 }
 
 void MainComponent::releaseResources() {}
@@ -36,11 +80,12 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
     auto *device = deviceManager.getCurrentAudioDevice();
     auto activeIn = device->getActiveInputChannels();
     auto activeOut = device->getActiveOutputChannels();
+
+    int rate = device->getCurrentSampleRate();
     int maxIn = activeIn.getHighestBit() + 1;
     int maxOut = activeOut.getHighestBit() + 1;
 
-    //do fft
-    fifoIndex = 0;
+    int fifoIndex = 0;
     std::fill(fifo.begin(), fifo.end(), 0);
     std::fill(fftData.begin(), fftData.end(), 0);
     for (int i = 0; i < maxIn; i++) {
@@ -50,9 +95,31 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
             fifo[fifoIndex++] = channelData[j];
         }
     }
-    std::copy(fifo.begin(), fifo.end(), fftData.data());
+    std::copy(fifo.begin(), fifo.end(), fftData.begin());
+    //do NOT apply a windowing filter, this gets bad.
+    // window.multiplyWithWindowingTable(fftData.data(), fftSize);
     //we can now perform an fft
-    
+    fft.performRealOnlyForwardTransform(fftData.data());
+    int j = 0;
+    for (int i = 1; i < fftSize / 2; i++) {
+        float freq = i * (rate / fftSize);
+        // std::cout << freq << std::endl;
+        // std::cout << boost_freq[j + 1] << std::endl;
+        while (freq > boost_freq[j + 1]) { j++; }
+        float x1 = boost_freq[j];
+        float y1 = boost_gain[j];
+        float x2 = boost_freq[j + 1];
+        float y2 = boost_gain[j + 1];
+
+        float slope = (y2 - y1) / (x2 - x1);
+        float inc = slope * (freq - x1) + y1;
+
+        float sq = std::sqrt(inc);
+        
+        fftData[2 * i] *= sq;
+        fftData[2 * i + 1] *= sq;
+    }
+    fft.performRealOnlyInverseTransform(fftData.data());
     int data_index = 0;
 
     for (int channel = 0; channel < maxOut; channel++) {
@@ -67,7 +134,7 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
                 auto *outBuffer = bufferToFill.buffer->getWritePointer(channel, bufferToFill.startSample);
                 for (int sample = 0; sample < bufferToFill.numSamples; sample++, data_index++) {
                     if (data_index >= fifo.size()) { data_index -= fifo.size(); }
-                    outBuffer[sample] = fftData[data_index] * level;
+                    outBuffer[sample] = fftData[data_index];
                 }
             }
         }
@@ -96,53 +163,9 @@ void MainComponent::paint(juce::Graphics& g) {
     auto bound_rect = getLocalBounds().toFloat();
     bound_rect.setHeight(bound_rect.getHeight() * 9/10);
     g.drawImage(spectrogramImage, bound_rect);
-    //add the slider in the last 1/10th
     decibel_slider.setBoundsRelative(0, .9f, 1, .1);
 }
 
-void MainComponent::resized() {
-    
-}
+void MainComponent::resized() {}
 
-void MainComponent::timerCallback() {
-    if (nextFFTBlockReady) {
-        drawNextLineOfSpectrogram();
-        nextFFTBlockReady = false;
-        repaint();
-    }
-}
-
-void MainComponent::pushNextSampleIntoFifo(float sample) {
-    //if all samples at this time are ready, then say we are ready
-    if (fifoIndex == fftSize) {
-        if (!nextFFTBlockReady) { //move all data in
-            std::fill(fftData.begin(), fftData.end(), 0.0f);
-            std::copy(fifo.begin(), fifo.end(), fftData.begin());
-            nextFFTBlockReady = true;
-        }
-        fifoIndex = 0;
-    }
-    fifo[(size_t) fifoIndex++] = sample;
-}
-
-void MainComponent::drawNextLineOfSpectrogram() {
-    // int rightEdge = spectrogramImage.getWidth() - 1;
-    // int imageHeight = spectrogramImage.getHeight();
-    // //moving left 1 pixel, because we are adding one pixel columns
-    // spectrogramImage.moveImageSection(0, 0, 1, 0, rightEdge, imageHeight);
-    //fft
-    forwardFFT.performFrequencyOnlyForwardTransform(fftData.data());
-    //find value range to scale rendering
-    //got a "Range" class
-    // auto maxLevel = juce::FloatVectorOperations::findMinAndMax(fftData.data(), fftSize / 2);
-
-    // for (int i = 1; i < imageHeight; i++) { //the pixel we on
-    //     //? wtf is happening
-    //     float skewedProportionY = 1.0f - std::exp(std::log((float) i / (float) imageHeight) * 0.2f);
-    //     int fftDataIndex = (size_t) juce::jlimit(0, fftSize / 2, (int) (skewedProportionY * fftSize / 2));
-
-    //     auto level = juce::jmap(fftData[fftDataIndex], 0.0f, juce::jmax(maxLevel.getEnd(), 1e-5f), 0.0f, 1.0f);
-
-    //     spectrogramImage.setPixelAt(rightEdge, i, juce::Colour::fromHSV(level, 1.0f, level, 1.0f));
-    // }
-}
+void MainComponent::timerCallback() {}

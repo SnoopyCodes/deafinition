@@ -15,7 +15,7 @@ class MainComponent :
 public juce::AudioAppComponent,
 private juce::Timer  {
 public:
-    static constexpr int fftOrder = 10;
+    static constexpr int fftOrder = 12;
     static constexpr int fftSize = 1 << fftOrder;
     MainComponent();
     ~MainComponent() override;
@@ -35,14 +35,17 @@ public:
 
 private:
     juce::Image spectrogramImage;
-    juce::dsp::FFT forwardFFT;
+    juce::dsp::FFT fft;
+    juce::dsp::WindowingFunction<float> window;
     juce::Random random;
 
     juce::Slider decibel_slider;
     std::array<float, fftSize> fifo;
     std::array<float, fftSize * 2> fftData;
 
-    int fifoIndex = 0;
+    std::vector<float> boost_gain;
+    std::vector<float> boost_freq;
+
     float level = 0;
     bool nextFFTBlockReady = false;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
