@@ -113,11 +113,10 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
 
         float slope = (y2 - y1) / (x2 - x1);
         float inc = slope * (freq - x1) + y1;
-
-        float sq = std::sqrt(inc);
+        float gain = powf(10.0f, inc / 20.0f);
         
-        fftData[2 * i] *= sq;
-        fftData[2 * i + 1] *= sq;
+        fftData[2 * i] *= inc;
+        fftData[2 * i + 1] *= inc;
     }
     fft.performRealOnlyInverseTransform(fftData.data());
     int data_index = 0;
